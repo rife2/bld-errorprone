@@ -17,6 +17,7 @@
 package rife.bld.extension;
 
 import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,26 @@ class ErrorProneOperationTest {
             "    }",
             "}",
             "");
+
+    /**
+     * Creates a working directory for a test project whose Error Prone sandbox
+     * ({@code lib/.sandbox/bld-errorprone/}) will hold the downloaded jars.
+     * <p>
+     * Deliberately <em>not</em> a JUnit {@link TempDir}: javac keeps the Error
+     * Prone plugin classloader (and its {@code -processor-path} jars under
+     * {@code lib/.sandbox}) open after compilation, so JUnit's default
+     * {@code @TempDir} cleanup fails on Windows with {@code DeletionException}
+     * ({@code The process cannot access the file because it is being used by
+     * another process}). The Detekt suite never hits this because Detekt is
+     * forked, so its classpath jars are only locked by the child JVM. Mirror
+     * that by keeping the sandbox out of {@code @TempDir}.
+     * <p>
+     * The directory is intentionally left for the OS to clean up; on
+     * POSIX/Windows the OS reaps {@code java.io.tmpdir} entries.
+     */
+    private static Path newWorkDir(String testId) throws IOException {
+        return Files.createTempDirectory("bld-errorprone-" + testId + "-");
+    }
 
     private static ErrorProneOperation operationFor(Path workDir, String source, String version)
             throws IOException {
@@ -291,7 +312,8 @@ class ErrorProneOperationTest {
     class ExecuteTests {
 
         @Test
-        void executeHandlesNullCompileOperation(@TempDir Path dir) throws Exception {
+        void executeHandlesNullCompileOperation() throws Exception {
+            var dir = newWorkDir("nullCompileOp");
             writeSource(dir, CLEAN_SOURCE);
             var project = new BaseProjectBlueprint(dir.toFile(), "com.example", "examples",
                     "Examples") {
@@ -327,6 +349,17 @@ class ErrorProneOperationTest {
                     "    }",
                     "}",
                     "");
+
+            private Path workDir;
+
+            @BeforeEach
+            void setUpWorkDir() throws IOException {
+                workDir = newWorkDir(getClass().getSimpleName());
+            }
+
+            Path workDir() {
+                return workDir;
+            }
 
             void assertCompiled() {
                 assertThat(workDir().resolve("build/main/com/example/Example.class")).exists();
@@ -397,7 +430,8 @@ class ErrorProneOperationTest {
             }
 
             @Test
-            void executeDoesNotMutateProjectCompileOptions(@TempDir Path dir) throws Exception {
+            void executeDoesNotMutateProjectCompileOptions() throws Exception {
+                var dir = workDir();
                 writeSource(dir, CLEAN_SOURCE);
                 var project = projectIn(dir);
                 project.compileOperation().compileOptions().add("-parameters");
@@ -417,7 +451,8 @@ class ErrorProneOperationTest {
             }
 
             @Test
-            void executeHonorsProjectCompileOptions(@TempDir Path dir) throws Exception {
+            void executeHonorsProjectCompileOptions() throws Exception {
+                var dir = workDir();
                 writeSource(dir, PARAM_SOURCE);
                 var project = projectIn(dir);
                 project.compileOperation().compileOptions().add("-parameters");
@@ -459,8 +494,6 @@ class ErrorProneOperationTest {
 
             abstract String version();
 
-            abstract Path workDir();
-
             @FunctionalInterface
             interface ThrowingRunnable {
 
@@ -473,17 +506,9 @@ class ErrorProneOperationTest {
         @EnabledForJreRange(min = JRE.JAVA_17, max = JRE.JAVA_20, disabledReason = "2.40.0 for JDK 17-20")
         class Jdk17 extends ExecuteTestBase {
 
-            @TempDir
-            Path workDir;
-
             @Override
             String version() {
                 return "2.40.0";
-            }
-
-            @Override
-            Path workDir() {
-                return workDir;
             }
         }
 
@@ -492,22 +517,15 @@ class ErrorProneOperationTest {
         @EnabledForJreRange(min = JRE.JAVA_21, disabledReason = "2.51.0 requires JDK 21+")
         class Jdk21Plus extends ExecuteTestBase {
 
-            @TempDir
-            Path workDir;
-
             @Override
             String version() {
                 return "2.51.0";
             }
 
-            @Override
-            Path workDir() {
-                return workDir;
-            }
-
             @Test
             @EnabledForJreRange(min = JRE.JAVA_21, disabledReason = "release 21 requires JDK 21+")
-            void executeHonorsProjectCompileOptionsRelease(@TempDir Path dir) throws Exception {
+            void executeHonorsProjectCompileOptionsRelease() throws Exception {
+                var dir = workDir();
                 writeSource(dir, CLEAN_SOURCE);
                 var project = projectIn(dir);
                 project.compileOperation().compileOptions().release(21);
@@ -1088,7 +1106,6 @@ class ErrorProneOperationTest {
     @Nested
     @DisplayName("Processor Path Tests")
     class ProcessorPathTests {
-
 
         @Test
         void consecutiveProcessorPathFlagsLeaveTheValueWithTheLastFlag() {
