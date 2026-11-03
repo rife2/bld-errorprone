@@ -594,7 +594,8 @@ class ErrorProneOperationTest {
         void executeRequiresSupportedJdkWithExplicitVersion() {
             assertThatThrownBy(() ->
                     ErrorProneOperation.requireSupportedJdk(11, ErrorProneOperation.ERROR_PRONE_VERSION)
-            ).isInstanceOf(IllegalStateException.class).hasMessageContaining("2.51.0");
+            ).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining(ErrorProneOperation.ERROR_PRONE_VERSION.toString());
         }
 
         @Test

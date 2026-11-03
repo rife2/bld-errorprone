@@ -73,7 +73,7 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
     /**
      * The Error Prone version used on JDK 21 and newer.
      */
-    public static final Version ERROR_PRONE_VERSION = new VersionNumber(2, 51, 0);
+    public static final Version ERROR_PRONE_VERSION = new VersionNumber(2, 52, 0);
     private static final String ALL_UNNAMED = "=ALL-UNNAMED";
     private static final String EXCLUDED_PATH = "excludedPath";
     private static final List<String> EXPORT_PACKAGES = List.of(
