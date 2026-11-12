@@ -72,14 +72,22 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
 
     /**
      * The Error Prone version used on JDK 21 and newer.
+     * <p>
+     * Currently: {@code 2.52.0}
      */
     public static final Version ERROR_PRONE_VERSION = new VersionNumber(2, 52, 0);
+    /**
+     * The Error Prone version used for JDK 17-20.
+     * <p>
+     * Last: {@code 2.42.0}
+     */
+    public static final Version LAST_JDK17_VERSION = new VersionNumber(2, 42, 0);
+
     private static final String ALL_UNNAMED = "=ALL-UNNAMED";
     private static final String EXCLUDED_PATH = "excludedPath";
     private static final List<String> EXPORT_PACKAGES = List.of(
             "api", "file", "main", "model", "parser", "processing", "tree", "util");
     private static final String JAVAC_PACKAGE = "com.sun.tools.javac.";
-    private static final Version LAST_JDK17_VERSION = new VersionNumber(2, 42, 0);
     private static final List<String> OPEN_PACKAGES = List.of("code", "comp");
     private static final String OPTION_NAME = "option name";
     private static final String OPTION_VALUE = "option value";
@@ -210,8 +218,23 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
     }
 
     // Fails early, with what to do, rather than letting the JVM fail with an UnsupportedClassVersionError.
+    // Only the thresholds encoded in the version constants can be enforced: ERROR_PRONE_VERSION (JDK 21+) and
+    // LAST_JDK17_VERSION (JDK 17-20). The minimum JDK of earlier releases is not known here, so versions
+    // below LAST_JDK17_VERSION are accepted on any JDK, and the caller is responsible for picking one that
+    // actually supports the running JDK.
     static void requireSupportedJdk(int jdk, Version version) {
         if (jdk >= 21) {
+            return;
+        }
+
+        if (jdk < 17) {
+            // LAST_JDK17_VERSION itself needs JDK 17, so it (and anything newer) is rejected here; this is
+            // what catches defaultVersion(int) returning LAST_JDK17_VERSION on JDK 11-16. Older versions may
+            // still support JDK 11-16, so they are allowed.
+            if (version.compareTo(LAST_JDK17_VERSION) >= 0) {
+                throw new IllegalStateException("Error Prone " + version + " requires JDK 17 or newer. Current JDK: "
+                        + jdk + ". Use a version older than " + LAST_JDK17_VERSION + ", see version(String).");
+            }
             return;
         }
 
@@ -258,7 +281,7 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
      * <p>
      * A customizer-supplied {@code --processor-path} is merged with the Error Prone processor path.
      * <p>
-     * Annotation processors that javac would otherwise discover on the compile classpath are no longer found
+     * Annotation processors that javac would otherwise discover on the classpath are no longer found
      * because the operation always sets a processor path; add them with {@code o.processorPath(...)} if needed.
      *
      * @param customizer the customizer
@@ -461,14 +484,16 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
      * <p>
      * Values are joined with {@code |}.
      * <p>
-     * Any pattern with non-zero {@link Pattern#flags() flags} is rejected (including {@code (?i)}). Use a
-     * {@code String} overload for flag-dependent matching.
+     * Any pattern with non-zero {@link Pattern#flags() flags} is rejected. Note that {@link Pattern#flags()} only
+     * reports flags passed to {@link Pattern#compile(String, int)}; inline flags such as {@code (?i)} are not
+     * included and therefore pass through unrejected. Use a {@code String} overload for inline-flag semantics.
      *
      * @param patterns the patterns
      * @return this operation
      * @throws NullPointerException     if {@code patterns} is {@code null} or contains {@code null}
-     * @throws IllegalArgumentException if {@code patterns} is empty, any element has non-zero {@code flags()},
-     *                                  or any pattern string is blank or contains whitespace or control characters
+     * @throws IllegalArgumentException if {@code patterns} is empty, any element was compiled with explicit flags
+     *                                  (non-zero {@code flags()}), or any pattern string is blank or contains
+     *                                  whitespace or control characters
      * @see #excludedPath(String...)
      * @see #excludedPath(Collection)
      */
@@ -616,7 +641,7 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
     }
 
     /**
-     * Sets the repositories to download Error Prone from.
+     * Sets the repositories to download Error Prone from, replacing the current list.
      * <p>
      * Default is {@link Repository#MAVEN_CENTRAL}.
      *
@@ -628,13 +653,17 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
      */
     public ErrorProneOperation repositories(Collection<Repository> repositories) {
         ObjectTools.requireNotEmpty(repositories, "repositories");
+        var validated = new ArrayList<Repository>(repositories.size());
+        for (var repository : repositories) {
+            validated.add(ObjectTools.requireNonNull(repository, "repositories"));
+        }
         repositories_.clear();
-        repositories_.addAll(repositories);
+        repositories_.addAll(validated);
         return this;
     }
 
     /**
-     * Sets the repositories to download Error Prone from.
+     * Sets the repositories to download Error Prone from, replacing the current list.
      * <p>
      * Default is {@link Repository#MAVEN_CENTRAL}.
      *

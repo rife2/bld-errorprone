@@ -26,10 +26,10 @@ This extension compiles source with the Error Prone compiler plugin enabled.
 The extension is built with JDK 17 and requires JDK 17 or newer to run.
 
 The operation picks a compatible Error Prone version for the running JDK,
-current at the time of writing:
+currently:
 
-* `2.51.0` on JDK 21+
-* `2.42.0` on JDK 17-20
+* [ERROR_PRONE_VERSION](https://rife2.github.io/bld-errorprone/rife/bld/extension/ErrorProneOperation.html#ERROR_PRONE_VERSION) on JDK 21+
+* [LAST_JDK17_VERSION](https://rife2.github.io/bld-errorprone/rife/bld/extension/ErrorProneOperation.html#LAST_JDK17_VERSION) on JDK 17-20
 
 An explicit version can be selected with `version(String)`. A version
 incompatible with the running JDK is rejected before downloading.
@@ -70,12 +70,15 @@ public void errorprone() throws Exception {
 ./bld clean errorprone
 ```
 
-- [View Example Project](https://github.com/rife2/bld-errorprone/tree/main/example)
+* [View Example Project](https://github.com/rife2/bld-errorprone/tree/main/example)
 
 ### Common Options
 
-Each check's default severity is listed in the Error Prone check index;
-the examples below use `JdkObsolete`, which is off by default, so both
+Each check's default severity is listed in the Error Prone
+[check index](https://errorprone.info/bugpatterns).
+
+Many of the examples
+below use `JdkObsolete`, which is off by default, so both
 `enableCheck` and `errorCheck` are unambiguous promotions from OFF.
 
 #### Failing the build
@@ -91,15 +94,12 @@ new ErrorProneOperation()
         .execute();
 ```
 
-A per-check severity set with `warnCheck(...)` or `errorCheck(...)`
-overrides `-Werror` for that diagnostic, so a single check can stay a warning
-under a global `-Werror`.
+That includes checks set to `WARN` with `warnCheck(...)`; the per-check setting
+changes how the finding is reported, not whether it fails the build. To fail
+on specific checks only, omit `-Werror` and promote them with `errorCheck(...)`.
 
-Error Prone already reports most of its checks at ERROR severity by default,
-so the build fails on them without configuration. `-Werror` additionally
-catches the checks (and javac warnings) that default to WARN.
-
-To promote one or more checks to ERROR:
+Most Error Prone checks already default to ERROR severity, so the build fails
+on them without `-Werror`. To promote the checks that don't:
 
 ```java
 new ErrorProneOperation()
@@ -180,10 +180,10 @@ new ErrorProneOperation()
 ```
 
 A `Pattern`-typed overload is available for callers who already have a
-compiled pattern. It rejects any pattern with non-zero `Pattern.flags()` —
-including inline flags such as `(?i)`, since Java reports them through
-`flags()` — so inline-flag semantics must be expressed via the `String`
-overloads:
+compiled pattern. It rejects any pattern compiled with explicit flags
+(non-zero `Pattern.flags()`). Inline flags such as `(?i)` are not reported
+by `flags()` and therefore pass through unrejected; use the `String`
+overloads if you need inline-flag semantics:
 
 ```java
 import java.util.regex.Pattern;
@@ -264,14 +264,17 @@ merged with the Error Prone processor path rather than replaced.
 
 #### Alternate Repository
 
-Download Error Prone through Google's Maven Central mirror:
+Download Error Prone through Google's Maven Central mirror, keeping Maven Central
+as a fallback:
 
 ```java
 new ErrorProneOperation()
         .fromProject(this)
-        .repositories(Repository.GOOGLE_MAVEN_CENTRAL)
+        .repositories(Repository.GOOGLE_MAVEN_CENTRAL, Repository.MAVEN_CENTRAL)
         .execute();
 ```
+
+## API Reference
 
 Please check the [ErrorProneOperation documentation](https://rife2.github.io/bld-errorprone/rife/bld/extension/ErrorProneOperation.html#method-summary) for all available
 configuration options.

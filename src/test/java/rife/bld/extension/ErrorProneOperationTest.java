@@ -352,15 +352,6 @@ class ErrorProneOperationTest {
 
             private Path workDir;
 
-            @BeforeEach
-            void setUpWorkDir() throws IOException {
-                workDir = newWorkDir(getClass().getSimpleName());
-            }
-
-            Path workDir() {
-                return workDir;
-            }
-
             void assertCompiled() {
                 assertThat(workDir().resolve("build/main/com/example/Example.class")).exists();
             }
@@ -477,6 +468,22 @@ class ErrorProneOperationTest {
             }
 
             @Test
+            void executeWarnCheckDoesNotOverrideWerror() {
+                // -Werror promotes every javac warning, including WARN-severity Error Prone findings.
+                // warnCheck changes the reported severity; it does not exempt the finding from -Werror.
+                var op = assertDoesNotThrow(() ->
+                        op(BAD_SOURCE).warnCheck("DeadException").compileOptions(o -> o.add("-Werror")));
+                assertThatThrownBy(op::execute).isInstanceOf(ExitStatusException.class);
+            }
+
+            @Test
+            void executeWarnCheckDowngradesError() throws Exception {
+                // DeadException is ERROR by default; warnCheck downgrades it to a non-fatal warning.
+                op(BAD_SOURCE).warnCheck("DeadException").execute();
+                assertCompiled();
+            }
+
+            @Test
             void executeWithCompileOptionsCustomFlag() throws Exception {
                 op(CLEAN_SOURCE).compileOptions(o -> o.add("-Xlint:none")).execute();
                 assertCompiled();
@@ -492,7 +499,16 @@ class ErrorProneOperationTest {
                 return operationFor(workDir(), source, version());
             }
 
+            @BeforeEach
+            void setUpWorkDir() throws IOException {
+                workDir = newWorkDir(getClass().getSimpleName());
+            }
+
             abstract String version();
+
+            Path workDir() {
+                return workDir;
+            }
 
             @FunctionalInterface
             interface ThrowingRunnable {
@@ -569,17 +585,17 @@ class ErrorProneOperationTest {
         @Test
         void defaultVersionBeforeJdk17FallsBackToJdk17Version() {
             assertThat(ErrorProneOperation.defaultVersion(11))
-                    .isEqualTo(new VersionNumber(2, 42, 0));
+                    .isEqualTo(ErrorProneOperation.LAST_JDK17_VERSION);
             assertThat(ErrorProneOperation.defaultVersion(16))
-                    .isEqualTo(new VersionNumber(2, 42, 0));
+                    .isEqualTo(ErrorProneOperation.LAST_JDK17_VERSION);
         }
 
         @Test
         void defaultVersionForJdk17() {
             assertThat(ErrorProneOperation.defaultVersion(17))
-                    .isEqualTo(new VersionNumber(2, 42, 0));
+                    .isEqualTo(ErrorProneOperation.LAST_JDK17_VERSION);
             assertThat(ErrorProneOperation.defaultVersion(20))
-                    .isEqualTo(new VersionNumber(2, 42, 0));
+                    .isEqualTo(ErrorProneOperation.LAST_JDK17_VERSION);
         }
 
         @Test
@@ -595,7 +611,7 @@ class ErrorProneOperationTest {
             assertThatThrownBy(() ->
                     ErrorProneOperation.requireSupportedJdk(11, ErrorProneOperation.ERROR_PRONE_VERSION)
             ).isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining(ErrorProneOperation.ERROR_PRONE_VERSION.toString());
+                    .hasMessageContaining("Current JDK: 11");
         }
 
         @Test
@@ -610,7 +626,7 @@ class ErrorProneOperationTest {
         @Test
         void requireSupportedJdkAllowsLastJdk17VersionOnJdk17() {
             assertThatCode(() ->
-                    ErrorProneOperation.requireSupportedJdk(17, new VersionNumber(2, 42, 0))
+                    ErrorProneOperation.requireSupportedJdk(17, ErrorProneOperation.LAST_JDK17_VERSION)
             ).doesNotThrowAnyException();
         }
 
@@ -622,9 +638,22 @@ class ErrorProneOperationTest {
         }
 
         @Test
+        void requireSupportedJdkRejectsDefaultVersionOnJdk11() {
+            // defaultVersion(int) returns LAST_JDK17_VERSION below JDK 21; that version needs JDK 17+.
+            assertThatThrownBy(() ->
+                    ErrorProneOperation.requireSupportedJdk(11, ErrorProneOperation.LAST_JDK17_VERSION)
+            ).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("requires JDK 17")
+                    .hasMessageContaining("Current JDK: 11")
+                    .hasMessageContaining("older than " + ErrorProneOperation.LAST_JDK17_VERSION);
+        }
+
+        @Test
         void requireSupportedJdkRejectsNewVersionOnJdk11() {
             assertThatThrownBy(() -> ErrorProneOperation.requireSupportedJdk(11, v2_50_0))
-                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("requires JDK 21");
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("requires JDK 17")
+                    .hasMessageContaining("Current JDK: 11");
         }
 
         @Test
