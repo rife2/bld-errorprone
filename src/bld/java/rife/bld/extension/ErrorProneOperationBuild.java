@@ -34,7 +34,7 @@ public class ErrorProneOperationBuild extends Project {
     public ErrorProneOperationBuild() {
         pkg = "rife.bld.extension";
         name = "bld-errorprone";
-        version = version(1, 0, 0, "SNAPSHOT");
+        version = version(0, 9, 1);
 
         javaRelease = 17;
 

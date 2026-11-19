@@ -73,7 +73,7 @@ public class ErrorProneOperation extends AbstractOperation<ErrorProneOperation> 
     /**
      * The Error Prone version used on JDK 21 and newer.
      * <p>
-     * Currently: {@code 2.54.0}
+     * Currently: {@code 2.53.0}
      */
     public static final Version ERROR_PRONE_VERSION = new VersionNumber(2, 53, 0);
     /**
